@@ -44,38 +44,22 @@ namespace SshClientConsole {
                             using (var client = new SshClient(info)) {
                                 client.Connect();
                                 var buffer = new byte[1024].AsMemory();
-                                var stream = client.CreateShellStream(string.Empty, 0, 0, 0, 0, 1024);
-
-                                var ExpectTask = stream.ExpectOnceAsync(end, Token);
-                                do {
-                                    if (stream.DataAvailable)
-                                        Trace.Write(await ReadAsync(stream, buffer, Encoding, Token));
-                                    else
-                                        await Task.Delay(ConsoleWait);
-                                    if (ExpectTask.IsCompleted && !stream.DataAvailable)
-                                        break;
-                                } while (!Token.IsCancellationRequested);
-                                Trace.Write(await ExpectTask);
-                                var line = string.Empty;
-                                do {
-                                    try {
-                                        line = Console.ReadLine();
-                                        stream.WriteLine(line);
-                                        ExpectTask = stream.ExpectOnceAsync(end, Token);
-                                        do {
-                                            if (stream.DataAvailable)
-                                                Trace.Write(await ReadAsync(stream, buffer, Encoding, Token));
-                                            else
-                                                await Task.Delay(ConsoleWait);
-
-                                            if (ExpectTask.IsCompleted && !stream.DataAvailable)
-                                                break;
-                                        } while (!Token.IsCancellationRequested);
-                                        Trace.Write(await ExpectTask);
-                                    } catch (Exception e) {
-                                        Trace.WriteLine(e);
-                                    }
-                                } while (line != string.Empty);
+                                var IsEnable = true;
+                                using (var stream = client.CreateShellStream(string.Empty, 0, 0, 0, 0, 1024)) {
+                                    IsEnable = await OutEndAsync(stream, end, ConsoleWait, buffer, Encoding, Token);
+                                    var line = string.Empty;
+                                    do {
+                                        if (!IsEnable)
+                                            break;
+                                        try {
+                                            line = Console.ReadLine();
+                                            stream.WriteLine(line);
+                                            IsEnable = await OutEndAsync(stream, end, ConsoleWait, buffer, Encoding, Token);
+                                        } catch (Exception e) {
+                                            Trace.WriteLine(e);
+                                        }
+                                    } while (IsEnable);
+                                }
                             }
                         }
                         return 0;
@@ -89,6 +73,38 @@ namespace SshClientConsole {
                 });
                 app.Execute(args);
             }
+        }
+        /// <summary>
+        /// <see cref="Trace.Write"/>で出力しつつ <paramref name="end"/>に合致した文字列が出現して出力しきる迄待つ
+        /// </summary>
+        /// <param name="stream"></param>
+        /// <param name="end"></param>
+        /// <param name="ConsoleWait"></param>
+        /// <param name="buffer"></param>
+        /// <param name="Encoding"></param>
+        /// <param name="Token"></param>
+        /// <returns></returns>
+        static async Task<bool> OutEndAsync(ShellStream stream, Regex end, TimeSpan ConsoleWait, Memory<byte> buffer, Encoding Encoding, CancellationToken Token = default)
+        {
+            var ExpectTask = stream.ExpectOnceAsync(end, Token);
+            do {
+                if (stream.DataAvailable)
+                    Trace.Write(await ReadAsync(stream, buffer, Encoding, Token));
+                else
+                    await Task.Delay(ConsoleWait);
+                if (ExpectTask.IsCompleted && !stream.DataAvailable)
+                    break;
+                if (!ExpectTask.IsCompleted && !stream.DataAvailable) {
+                    try {
+                        await stream.FlushAsync(Token);
+                    } catch (ObjectDisposedException) {
+                        return false;
+                    }
+                }
+            } while (!Token.IsCancellationRequested);
+            await stream.FlushAsync(Token);
+            Trace.Write(await ExpectTask);
+            return true;
         }
         /// <summary>
         /// <paramref name="stream"/>を末尾まで文字列として読み込む
