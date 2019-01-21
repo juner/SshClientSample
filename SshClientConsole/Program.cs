@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -8,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.CommandLineUtils;
 using Renci.SshNet;
 using Renci.SshNet.Async;
+using Renci.SshNet.Common;
 
 namespace SshClientConsole {
     class Program {
@@ -45,7 +47,10 @@ namespace SshClientConsole {
                                 client.Connect();
                                 var buffer = new byte[1024].AsMemory();
                                 var IsEnable = true;
-                                using (var stream = client.CreateShellStream(string.Empty, 0, 0, 0, 0, 1024)) {
+                                var TerminalModeValues = new Dictionary<TerminalModes, uint> {
+                                    { TerminalModes.ECHO, 53 },
+                                };
+                                using (var stream = client.CreateShellStream(string.Empty, 0, 0, 0, 0, buffer.Length, TerminalModeValues)) {
                                     IsEnable = await OutEndAsync(stream, end, ConsoleWait, buffer, Encoding, Token);
                                     var line = string.Empty;
                                     do {
