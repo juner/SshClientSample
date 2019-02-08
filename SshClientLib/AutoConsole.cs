@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Renci.SshNet;
@@ -11,12 +12,12 @@ namespace SshClient {
             get; protected set;
         } = false;
         IEnumerator<string> ValueEnumerator;
-        public AutoConsole(string HostName, string UserName, string Password, Encoding Encoding, string EndPattern, IEnumerable<string> ValueEnumerable)
+        public AutoConsole(string HostName, string UserName, string Password, Encoding Encoding, Regex EndPattern, IEnumerable<string> ValueEnumerable)
             : base(HostName, UserName, Password, Encoding, EndPattern, true)
             => ValueEnumerator = ValueEnumerable?.GetEnumerator() ?? throw new ArgumentNullException(nameof(ValueEnumerable));
 
 
-        public AutoConsole(ConnectionInfo ConnectionInfo, string EndPattern, IEnumerable<string> ValueEnumerable) : base(ConnectionInfo, EndPattern, true)
+        public AutoConsole(ConnectionInfo ConnectionInfo, Regex EndPattern, IEnumerable<string> ValueEnumerable) : base(ConnectionInfo, EndPattern, true)
             => ValueEnumerator = ValueEnumerable?.GetEnumerator() ?? throw new ArgumentNullException(nameof(ValueEnumerable));
         protected override Task<string> NextValueAsync(CancellationToken Token = default)
         {

@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using Microsoft.Extensions.CommandLineUtils;
 
@@ -37,7 +38,7 @@ namespace SshClientConsole.NetCore {
                                 var EndPattern = EndPatternOption.HasValue() ? EndPatternOption.Value() : SshClient.Console.DEFAULT_ENDPATTERN;
                                 var AutoCommandsPath = AutoCommandsPathArgument.Value ?? throw new ArgumentNullException(AutoCommandsPathArgument.Name);
                                 var Commands = File.ReadAllLines(AutoCommandsPath, new UTF8Encoding(false));
-                                await new SshClient.AutoConsole(HostName, UserName, Password, Encoding.UTF8, EndPattern, Commands).StartAsync(TokenSource.Token);
+                                await new SshClient.AutoConsole(HostName, UserName, Password, Encoding.UTF8, new Regex(EndPattern, RegexOptions.Multiline), Commands).StartAsync(TokenSource.Token);
                                 return 0;
                             } catch (OperationCanceledException) {
                                 return 0;
@@ -63,7 +64,7 @@ namespace SshClientConsole.NetCore {
                             }
                             var EndPattern = EndPatternOption.HasValue() ? EndPatternOption.Value() : SshClient.Console.DEFAULT_ENDPATTERN;
                             Trace.WriteLine($"{nameof(EndPattern)}: {EndPattern}");
-                            await new SshClient.Console(HostName, UserName, Password, Encoding.UTF8, EndPattern).StartAsync(TokenSource.Token);
+                            await new SshClient.Console(HostName, UserName, Password, Encoding.UTF8, new Regex(EndPattern, RegexOptions.Multiline)).StartAsync(TokenSource.Token);
                             return 0;
                         } catch (OperationCanceledException) {
                             return 0;

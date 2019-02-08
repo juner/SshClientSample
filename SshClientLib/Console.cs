@@ -13,25 +13,23 @@ using Renci.SshNet.Common;
 namespace SshClient {
     public class Console : IDisposable {
         public static readonly string DEFAULT_ENDPATTERN = @"[$#>:][ ]$";
-        ConnectionInfo ConnectionInfo;
-        string EndPattern;
+        readonly ConnectionInfo ConnectionInfo;
+        readonly Regex EndPattern;
         protected bool IsStopNextValueNull;
-        public Console(string HostName, string UserName, string Password, Encoding Encoding, string EndPattern, bool IsStopNextValueNull = false)
+        public Console(string HostName, string UserName, string Password, Encoding Encoding, Regex EndPattern, bool IsStopNextValueNull = false)
             : this(new ConnectionInfo(HostName, UserName, new PasswordAuthenticationMethod(UserName, Password)) {
                 Encoding = Encoding.UTF8
             }, EndPattern, IsStopNextValueNull)
         {
         }
-        public Console(ConnectionInfo ConnectionInfo, string EndPattern, bool IsStopNextValueNull = false)
+        public Console(ConnectionInfo ConnectionInfo, Regex EndPattern, bool IsStopNextValueNull = false)
             => (this.ConnectionInfo, this.EndPattern, this.IsStopNextValueNull)
             = (ConnectionInfo ?? throw new ArgumentNullException(nameof(ConnectionInfo))
-            , string.IsNullOrEmpty(EndPattern) ? throw new ArgumentNullException(nameof(EndPattern)) : EndPattern
+            , EndPattern ?? throw new ArgumentNullException(nameof(EndPattern))
             , IsStopNextValueNull);
         public async Task StartAsync(CancellationToken Token)
         {
             try {
-                EndPattern = EndPattern ?? DEFAULT_ENDPATTERN;
-                var end = new Regex(EndPattern, RegexOptions.Multiline);
                 var ConsoleWait = TimeSpan.FromMilliseconds(100);
                 var Encoding = ConnectionInfo.Encoding;
                 using (var client = new Renci.SshNet.SshClient(ConnectionInfo))
@@ -44,7 +42,7 @@ namespace SshClient {
                     };
                     using (var stream = client.CreateShellStream(string.Empty, 0, 0, 0, 0, buffer.Length, TerminalModeValues))
                     using (Token.Register(() => stream.Dispose())) {
-                        IsEnable = await OutEndAsync(stream, end, ConsoleWait, buffer, Encoding, Token);
+                        IsEnable = await OutEndAsync(stream, EndPattern, ConsoleWait, buffer, Encoding, Token);
                         var line = string.Empty;
                         do {
                             if (!IsEnable)
@@ -54,7 +52,7 @@ namespace SshClient {
                                 if (IsStopNextValueNull && line == null)
                                     break;
                                 stream.WriteLine(line);
-                                IsEnable = await OutEndAsync(stream, end, ConsoleWait, buffer, Encoding, Token);
+                                IsEnable = await OutEndAsync(stream, EndPattern, ConsoleWait, buffer, Encoding, Token);
                             } catch (OperationCanceledException) {
                                 throw;
                             } catch (Exception e) {
