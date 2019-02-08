@@ -1,8 +1,7 @@
-﻿using System;
-using System.Threading;
+﻿using System.Threading;
 using Microsoft.Extensions.CommandLineUtils;
 
-namespace SshClientConsole.NetCore {
+namespace SshClientConsole.NetFramework {
     class Program {
         const string DEFAULT_ENDPATTERN = @"[$#>:][ ]$";
         static void Main(string[] args)

@@ -9,9 +9,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		README.md = README.md
 	EndProjectSection
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SshClientConsole", "SshClientConsole\SshClientConsole.csproj", "{1554068F-147E-4E2A-A5E3-1EB93B4AFC19}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SshClientConsoleCore", "SshClientConsole\SshClientConsoleCore.csproj", "{1554068F-147E-4E2A-A5E3-1EB93B4AFC19}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SshClientLib", "SshClientLib\SshClientLib.csproj", "{F5EA3F83-32BF-4185-9A4E-B29B73680FCA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SshClientConsoleNet", "SshClientConsoleNet\SshClientConsoleNet.csproj", "{AA135013-FCBE-444F-9AC7-DE699849B7CB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -27,6 +29,10 @@ Global
 		{F5EA3F83-32BF-4185-9A4E-B29B73680FCA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F5EA3F83-32BF-4185-9A4E-B29B73680FCA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F5EA3F83-32BF-4185-9A4E-B29B73680FCA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AA135013-FCBE-444F-9AC7-DE699849B7CB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AA135013-FCBE-444F-9AC7-DE699849B7CB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AA135013-FCBE-444F-9AC7-DE699849B7CB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AA135013-FCBE-444F-9AC7-DE699849B7CB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
