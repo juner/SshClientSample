@@ -6,82 +6,96 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.CommandLineUtils;
 using Renci.SshNet;
 using Renci.SshNet.Async;
 using Renci.SshNet.Common;
 
 namespace SshClient {
-    public class Console {
-        const string DEFAULT_ENDPATTERN = @"[$#>:][ ]$";
-        public CommandOption UserNameOption {
-            get; set;
-        }
-        public CommandOption HostNameOption {
-            get; set;
-        }
-        public CommandOption PasswordOption {
-            get; set;
-        }
-        public CommandOption EndPatternOption {
-            get; set;
-        }
-        public async Task<int> StartAsync(CancellationToken Token)
+    public class Console : IDisposable {
+        public static readonly string DEFAULT_ENDPATTERN = @"[$#>:][ ]$";
+        ConnectionInfo ConnectionInfo;
+        string EndPattern;
+        protected bool IsStopNextValueNull;
+        public Console(string HostName, string UserName, string Password, Encoding Encoding, string EndPattern, bool IsStopNextValueNull = false)
+            : this(new ConnectionInfo(HostName, UserName, new PasswordAuthenticationMethod(UserName, Password)) {
+                Encoding = Encoding.UTF8
+            }, EndPattern, IsStopNextValueNull)
         {
-            using (var writer = new TextWriterTraceListener(System.Console.Out)) {
-                Trace.Listeners.Add(writer);
-                var UserName = UserNameOption.HasValue() ? UserNameOption.Value() : throw new ArgumentNullException(UserNameOption.ValueName);
-                Trace.WriteLine($"{nameof(UserName)}:{UserName}");
-                var HostName = HostNameOption.Value() ?? throw new ArgumentNullException(HostNameOption.ValueName);
-                Trace.WriteLine($"{nameof(HostName)}:{HostName}");
-                var Password = PasswordOption.HasValue() ? PasswordOption.Value() : throw new ArgumentNullException(PasswordOption.ValueName);
-                var EndPattern = EndPatternOption.HasValue() ? EndPatternOption.Value() : DEFAULT_ENDPATTERN;
-                Trace.WriteLine($"{nameof(EndPattern)}: {EndPattern}");
-                if (string.IsNullOrEmpty(Password)) {
-                    Trace.Write("Password: ");
-                    Password = System.Console.ReadLine();
-                }
+        }
+        public Console(ConnectionInfo ConnectionInfo, string EndPattern, bool IsStopNextValueNull = false)
+            => (this.ConnectionInfo, this.EndPattern, this.IsStopNextValueNull)
+            = (ConnectionInfo ?? throw new ArgumentNullException(nameof(ConnectionInfo))
+            , string.IsNullOrEmpty(EndPattern) ? throw new ArgumentNullException(nameof(EndPattern)) : EndPattern
+            , IsStopNextValueNull);
+        public async Task StartAsync(CancellationToken Token)
+        {
+            try {
+                EndPattern = EndPattern ?? DEFAULT_ENDPATTERN;
                 var end = new Regex(EndPattern, RegexOptions.Multiline);
                 var ConsoleWait = TimeSpan.FromMilliseconds(100);
-                try {
-                    var AuthMethod = new PasswordAuthenticationMethod(UserName, Password);
-                    var info = new ConnectionInfo(HostName, UserName, AuthMethod) {
-                        Encoding = System.Text.Encoding.UTF8
+                var Encoding = ConnectionInfo.Encoding;
+                using (var client = new Renci.SshNet.SshClient(ConnectionInfo))
+                using (Token.Register(() => client.Dispose())) {
+                    client.Connect();
+                    var buffer = new byte[1024];
+                    var IsEnable = true;
+                    var TerminalModeValues = new Dictionary<TerminalModes, uint> {
+                        { TerminalModes.ECHO, 53 },
                     };
-                    var Encoding = info.Encoding;
-                    using (var client = new Renci.SshNet.SshClient(info))
-                    using (Token.Register(() => client.Dispose())) {
-                        client.Connect();
-                        var buffer = new byte[1024];
-                        var IsEnable = true;
-                        var TerminalModeValues = new Dictionary<TerminalModes, uint> {
-                            { TerminalModes.ECHO, 53 },
-                        };
-                        using (var stream = client.CreateShellStream(string.Empty, 0, 0, 0, 0, buffer.Length, TerminalModeValues)) {
-                            IsEnable = await OutEndAsync(stream, end, ConsoleWait, buffer, Encoding, Token);
-                            var line = string.Empty;
-                            do {
-                                if (!IsEnable)
+                    using (var stream = client.CreateShellStream(string.Empty, 0, 0, 0, 0, buffer.Length, TerminalModeValues))
+                    using (Token.Register(() => stream.Dispose())) {
+                        IsEnable = await OutEndAsync(stream, end, ConsoleWait, buffer, Encoding, Token);
+                        var line = string.Empty;
+                        do {
+                            if (!IsEnable)
+                                break;
+                            try {
+                                line = await NextValueAsync(Token);
+                                if (IsStopNextValueNull && line == null)
                                     break;
-                                try {
-                                    line = System.Console.ReadLine();
-                                    stream.WriteLine(line);
-                                    IsEnable = await OutEndAsync(stream, end, ConsoleWait, buffer, Encoding, Token);
-                                } catch (Exception e) {
-                                    Trace.WriteLine(e);
-                                }
-                            } while (IsEnable);
-                        }
+                                stream.WriteLine(line);
+                                IsEnable = await OutEndAsync(stream, end, ConsoleWait, buffer, Encoding, Token);
+                            } catch (OperationCanceledException) {
+                                throw;
+                            } catch (Exception e) {
+                                Trace.WriteLine(e);
+                            }
+                        } while (IsEnable && !Token.IsCancellationRequested);
                     }
-                    return 0;
-                } catch (TaskCanceledException e) {
-                    Trace.WriteLine("Canceled.");
-                    return e.HResult;
-                } catch (Exception e) {
-                    Trace.WriteLine(e);
-                    return e.HResult;
                 }
+            } catch (OperationCanceledException) {
+                if (Token.IsCancellationRequested)
+                    Trace.WriteLine("Canceled.");
+                else
+                    throw;
             }
+        }
+        protected virtual Task<string> NextValueAsync(CancellationToken Token = default) => ReadLineAsync(Token);
+        delegate string ReadLineDelegate();
+
+        public static Task<string> ReadLineAsync(CancellationToken Token = default)
+        {
+            Token.ThrowIfCancellationRequested();
+            var Source = new TaskCompletionSource<string>();
+            ReadLineDelegate d = System.Console.ReadLine;
+            IAsyncResult Result = null;
+            IDisposable Disposable = Token.Register(() => {
+                Source.TrySetCanceled();
+                if (Result != default)
+                    d.EndInvoke(Result);
+            });
+            Result = d.BeginInvoke((r) => {
+                try {
+                    Source.TrySetResult(d.EndInvoke(r));
+                } catch (Exception e) {
+                    Source.TrySetException(e);
+                } finally {
+                    Disposable?.Dispose();
+                    Disposable = null;
+                    Result = null;
+                }
+            }, null);
+            return Source.Task;
         }
 
         /// <summary>
@@ -174,5 +188,23 @@ namespace SshClient {
             }
             public void Dispose() => Dispose(true);
         }
+
+        #region IDisposable Support
+        private bool disposedValue = false;
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue) {
+                if (disposing) {
+                    //noop
+                }
+                disposedValue = true;
+            }
+        }
+
+        // このコードは、破棄可能なパターンを正しく実装できるように追加されました。
+        public void Dispose() =>
+            Dispose(true);
+        #endregion
     }
 }
