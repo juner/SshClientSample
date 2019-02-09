@@ -11,7 +11,7 @@ namespace SshClientConsole.NetCore {
         static void Main(string[] args)
         {
             using (var TokenSource = new CancellationTokenSource())
-            using (SshClient.Console.SetConsoleCtrlHandler(ctrl => {
+            using (SshClient.SetConsoleCtrl.SetHandler(ctrl => {
                 TokenSource.Cancel();
                 return false;
             })) {
